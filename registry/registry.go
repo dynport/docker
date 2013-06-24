@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 )
@@ -155,7 +156,8 @@ func (r *Registry) GetRemoteTags(registries []string, repository string, token [
 		repository = "library/" + repository
 	}
 	for _, host := range registries {
-		endpoint := fmt.Sprintf("https://%s/v1/repositories/%s/tags", host, repository)
+		endpoint := fmt.Sprintf("%s://%s/v1/repositories/%s/tags", r.protocol, host, repository)
+		utils.Debugf("using endpoint %s", endpoint)
 		req, err := r.opaqueRequest("GET", endpoint, nil)
 		if err != nil {
 			return nil, err
@@ -249,7 +251,9 @@ func (r *Registry) GetRepositoryData(remote string) (*RepositoryData, error) {
 
 // Push a local image to the registry
 func (r *Registry) PushImageJSONRegistry(imgData *ImgData, jsonRaw []byte, registry string, token []string) error {
-	registry = "https://" + registry + "/v1"
+	registry = r.protocol + "://" + registry + "/v1"
+	utils.Debugf("using registry %s", registry)
+
 	// FIXME: try json with UTF8
 	req, err := http.NewRequest("PUT", registry+"/images/"+imgData.ID+"/json", strings.NewReader(string(jsonRaw)))
 	if err != nil {
@@ -285,7 +289,8 @@ func (r *Registry) PushImageJSONRegistry(imgData *ImgData, jsonRaw []byte, regis
 }
 
 func (r *Registry) PushImageLayerRegistry(imgId string, layer io.Reader, registry string, token []string) error {
-	registry = "https://" + registry + "/v1"
+	registry = r.protocol + "://" + registry + "/v1"
+	utils.Debugf("using registry %s", registry)
 	req, err := http.NewRequest("PUT", registry+"/images/"+imgId+"/layer", layer)
 	if err != nil {
 		return err
@@ -298,6 +303,8 @@ func (r *Registry) PushImageLayerRegistry(imgId string, layer io.Reader, registr
 		return fmt.Errorf("Failed to upload layer: %s", err)
 	}
 	defer res.Body.Close()
+
+	utils.Debugf("got status %d", res.StatusCode)
 
 	if res.StatusCode != 200 {
 		errBody, err := ioutil.ReadAll(res.Body)
@@ -323,7 +330,8 @@ func (r *Registry) opaqueRequest(method, urlStr string, body io.Reader) (*http.R
 func (r *Registry) PushRegistryTag(remote, revision, tag, registry string, token []string) error {
 	// "jsonify" the string
 	revision = "\"" + revision + "\""
-	registry = "https://" + registry + "/v1"
+	registry = r.protocol + "://" + registry + "/v1"
+	utils.Debugf("using registry %s", registry)
 
 	req, err := r.opaqueRequest("PUT", registry+"/repositories/"+remote+"/tags/"+tag, strings.NewReader(revision))
 	if err != nil {
@@ -332,6 +340,7 @@ func (r *Registry) PushRegistryTag(remote, revision, tag, registry string, token
 	req.Header.Add("Content-type", "application/json")
 	req.Header.Set("Authorization", "Token "+strings.Join(token, ","))
 	req.ContentLength = int64(len(revision))
+	utils.Debugf("sending request %v", req)
 	res, err := doWithCookies(r.client, req)
 	if err != nil {
 		return err
@@ -486,6 +495,7 @@ type ImgData struct {
 type Registry struct {
 	client     *http.Client
 	authConfig *auth.AuthConfig
+	protocol   string
 }
 
 func NewRegistry(root string, authConfig *auth.AuthConfig) (r *Registry, err error) {
@@ -494,12 +504,19 @@ func NewRegistry(root string, authConfig *auth.AuthConfig) (r *Registry, err err
 		Proxy:             http.ProxyFromEnvironment,
 	}
 
+	protocol := "https"
+	if os.Getenv("DOCKER_USE_SSL") == "false" {
+		protocol = "http"
+	}
+
 	r = &Registry{
 		authConfig: authConfig,
 		client: &http.Client{
 			Transport: httpTransport,
 		},
+		protocol: protocol,
 	}
+	utils.Debugf("using protocol %s", r.protocol)
 	r.client.Jar, err = cookiejar.New(nil)
 	return r, err
 }
