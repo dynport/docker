@@ -156,7 +156,7 @@ func (r *Registry) GetRemoteTags(registries []string, repository string, token [
 		repository = "library/" + repository
 	}
 	for _, host := range registries {
-		endpoint := fmt.Sprintf("%s://%s/v1/repositories/%s/tags", r.protocol, host, repository)
+		endpoint := fmt.Sprintf("%s://%s/v1/repositories/%s/tags", r.Protocol, host, repository)
 		utils.Debugf("using endpoint %s", endpoint)
 		req, err := r.opaqueRequest("GET", endpoint, nil)
 		if err != nil {
@@ -251,7 +251,7 @@ func (r *Registry) GetRepositoryData(remote string) (*RepositoryData, error) {
 
 // Push a local image to the registry
 func (r *Registry) PushImageJSONRegistry(imgData *ImgData, jsonRaw []byte, registry string, token []string) error {
-	registry = r.protocol + "://" + registry + "/v1"
+	registry = r.Protocol + "://" + registry + "/v1"
 	utils.Debugf("using registry %s", registry)
 
 	// FIXME: try json with UTF8
@@ -289,7 +289,7 @@ func (r *Registry) PushImageJSONRegistry(imgData *ImgData, jsonRaw []byte, regis
 }
 
 func (r *Registry) PushImageLayerRegistry(imgId string, layer io.Reader, registry string, token []string) error {
-	registry = r.protocol + "://" + registry + "/v1"
+	registry = r.Protocol + "://" + registry + "/v1"
 	utils.Debugf("using registry %s", registry)
 	req, err := http.NewRequest("PUT", registry+"/images/"+imgId+"/layer", layer)
 	if err != nil {
@@ -330,7 +330,7 @@ func (r *Registry) opaqueRequest(method, urlStr string, body io.Reader) (*http.R
 func (r *Registry) PushRegistryTag(remote, revision, tag, registry string, token []string) error {
 	// "jsonify" the string
 	revision = "\"" + revision + "\""
-	registry = r.protocol + "://" + registry + "/v1"
+	registry = r.Protocol + "://" + registry + "/v1"
 	utils.Debugf("using registry %s", registry)
 
 	req, err := r.opaqueRequest("PUT", registry+"/repositories/"+remote+"/tags/"+tag, strings.NewReader(revision))
@@ -495,7 +495,7 @@ type ImgData struct {
 type Registry struct {
 	client     *http.Client
 	authConfig *auth.AuthConfig
-	protocol   string
+	Protocol   string
 }
 
 func NewRegistry(root string, authConfig *auth.AuthConfig) (r *Registry, err error) {
@@ -514,9 +514,9 @@ func NewRegistry(root string, authConfig *auth.AuthConfig) (r *Registry, err err
 		client: &http.Client{
 			Transport: httpTransport,
 		},
-		protocol: protocol,
+		Protocol: protocol,
 	}
-	utils.Debugf("using protocol %s", r.protocol)
+	utils.Debugf("using protocol %s", r.Protocol)
 	r.client.Jar, err = cookiejar.New(nil)
 	return r, err
 }
