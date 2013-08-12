@@ -690,6 +690,33 @@ func (cli *DockerCli) CmdPort(args ...string) error {
 	return nil
 }
 
+func (cli *DockerCli) CmdIp(args ...string) error {
+	cmd := Subcmd("ip", "CONTAINER", "Lookup ip address of CONTAINER")
+	if err := cmd.Parse(args); err != nil {
+		return nil
+	}
+
+	if cmd.NArg() != 1 {
+		cmd.Usage()
+		return nil
+	}
+	containerId := cmd.Arg(0)
+	body, _, err := cli.call("GET", "/containers/"+containerId+"/json", nil)
+	if err != nil {
+		return err
+	}
+	var out Container
+	err = json.Unmarshal(body, &out)
+	if err != nil {
+		return err
+	}
+	if ip := out.NetworkSettings.IPAddress; ip == "" {
+		return fmt.Errorf("Error: No ip found for container %s", containerId)
+	}
+	fmt.Fprintf(cli.out, "%s\n", ip)
+	return nil
+}
+
 // 'docker rmi IMAGE' removes all images with the name IMAGE
 func (cli *DockerCli) CmdRmi(args ...string) error {
 	cmd := Subcmd("rmi", "IMAGE [IMAGE...]", "Remove one or more images")
